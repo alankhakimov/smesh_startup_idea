@@ -1,17 +1,14 @@
 import cv2
 import time
+from analyze_frame import*
 
-def analyze_frame(frame):
-    output = frame.copy()
-    h, w = frame.shape[:2]
-    cv2.rectangle(output, (10, 10), (w - 10, h - 10), (0, 255, 0), 2)
-    cv2.putText(output, "Analyzed Frame", (50, 50),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-    return output
-
+#main loop for running script
 def main():
     video_path = "C:\Documents\Startup Idea\IMG_9264.mov"
     cap = cv2.VideoCapture(video_path)
+    model = YOLO("yolov8n.pt")
+    conf_threshold = 0.2
+    dim_background = True
 
     if not cap.isOpened():
         raise RuntimeError(f"Could not open video: {video_path}")
@@ -33,7 +30,8 @@ def main():
                 break
 
             # --- Analyze frame here ---
-            processed_frame = analyze_frame(frame)
+            processed_frame = analyze_frame(frame, model,
+                                            conf_threshold, dim_background)
 
             cv2.imshow("Video", processed_frame)
             frame_idx += 1
@@ -58,7 +56,8 @@ def main():
                 ret, frame = cap.read()
                 if not ret:
                     break
-                processed_frame = analyze_frame(frame)
+                processed_frame = analyze_frame(frame, model,
+                                                conf_threshold, dim_background)
                 cv2.imshow("Video", processed_frame)
                 frame_idx += 1
             elif key == ord("p"):
@@ -67,7 +66,8 @@ def main():
                 cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
                 ret, frame = cap.read()
                 if ret:
-                    processed_frame = analyze_frame(frame)
+                    processed_frame = analyze_frame(frame, model,
+                                                    conf_threshold, dim_background)
                     cv2.imshow("Video", processed_frame)
             elif key == ord(" "):
                 paused = False
