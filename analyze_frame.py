@@ -1,50 +1,39 @@
 from helpers import*
-
-def analyze_frame(frame, model, conf_threshold=0.3, draw_skeleton_flag=True):
+from state import*
+def analyze_frame(
+    frame,
+    model,
+    conf_threshold=0.3,
+    draw_skeleton_flag=True,
+    state: VideoAnalysisState = None
+):
     """
-    Main analyze frame function
+    Main analyze-frame controller.
     """
+    #detect fighters on frame
+    detections = extract_detections(frame, model, conf_threshold)
+    fighter_idx = None
+    if state is not None:
+        fighter_idx = get_primary_detection_idx(detections, state)
+        # Update the state object
+        if fighter_idx is not None:
+            det = detections[fighter_idx]
+            x1, y1, x2, y2 = det["bbox"]
+            state.primary_idx = fighter_idx
+            state.primary_center = ((x1 + x2) / 2, (y1 + y2) / 2)
+            state.primary_bbox = det["bbox"]
 
-    # analyze frame with YOLO
-    results = model(frame, conf=conf_threshold, verbose=False)[0]
-    output = frame.copy()
-
-    # list of dictionaries storing bounding boxes and keypoints
-    detections = []
-
-    if results.keypoints is None:
-        return output, detections
-
-    # Structural skeleton (COCO indices)
-    skeleton_structural = [
-        (5, 6), (5, 7), (7, 9), (6, 8), (8, 10),
-        (5, 11), (6, 12), (11, 12), (11, 13), (13, 15), (12, 14), (14, 16)
-    ]
-
-    # Bounding boxes, skeleton and key points
-    for box, kpts in zip(results.boxes, results.keypoints):
-        if int(box.cls) != 0:
-            continue
-
-        # Draw bounding box
-        output, bbox_coords = draw_bbox(output, box)
-
-        if draw_skeleton_flag:
-            # Convert keypoints and confidence
-            xy_array = kpts.xy.cpu().numpy().reshape(-1, 2)
-            conf_array = kpts.conf.cpu().numpy().flatten()
-
-            # Draw keypoints and skeleton
-            output = draw_keypoints(output, xy_array, conf_array, conf_thresh=0.9)
-            output = draw_skeleton(output, xy_array, conf_array, skeleton_structural, conf_thresh=0.9)
-
-        # Store detection info
-        detections.append({
-            "bbox": bbox_coords,
-            "keypoints": kpts
-        })
+    #superimpose detections onto original frame
+    output = render_detections(
+        frame,
+        detections,
+        draw_skeleton_flag=draw_skeleton_flag,
+        conf_thresh=0.3,
+        fighter_idx=fighter_idx,
+    )
 
     return output, detections
+
 
 
 
