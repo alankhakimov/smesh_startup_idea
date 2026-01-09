@@ -10,6 +10,13 @@ def analyze_frame(
     """
     Main analyze-frame controller.
     """
+
+    #use template tracking from previous frame
+    tracked_bbox = None
+    if state.prev_frame is not None:
+        tracked_bbox = track_primary_bbox(prev_frame=state.prev_frame, curr_frame=frame,
+                                       prev_bbox = state.primary_bbox)
+
     #detect fighters on frame
     detections = extract_detections(frame, model, conf_threshold)
     fighter_idx = None
@@ -31,6 +38,14 @@ def analyze_frame(
         conf_thresh=0.3,
         fighter_idx=fighter_idx,
     )
+
+    if tracked_bbox is not None:
+        output = draw_tracked_bbox(
+            output,
+            tracked_bbox,
+            color=(255, 0, 255),  # magenta
+            thickness=2
+        )
 
     return output, detections
 

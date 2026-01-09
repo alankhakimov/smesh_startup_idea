@@ -8,6 +8,31 @@ def draw_bbox(output, box, color=(0, 255, 0), thickness=2):
     cv2.rectangle(output, (x1, y1), (x2, y2), color, thickness)
     return output, (x1, y1, x2, y2)
 
+def draw_tracked_bbox(frame, bbox, color=(255, 0, 255), thickness=2):
+    """
+    Draw a bounding box on the frame.
+
+    Args:
+        frame (np.ndarray): Image to draw on.
+        bbox (tuple): (x1, y1, x2, y2).
+        color (tuple): BGR color (default: magenta).
+        thickness (int): Line thickness.
+    """
+    if bbox is None:
+        return frame
+
+    x1, y1, x2, y2 = map(int, bbox)
+
+    cv2.rectangle(
+        frame,
+        (x1, y1),
+        (x2, y2),
+        color,
+        thickness
+    )
+
+    return frame
+
 def draw_keypoints(output, xy_array, conf_array, conf_thresh=0.9, color=(0, 0, 255), radius=3):
     """Draw keypoints as circles."""
     for i in range(xy_array.shape[0]):
@@ -199,3 +224,80 @@ def reassign_primary(detections, state, mouse_state):
                 state.selecting = False
 
                 print(f"Primary fighter reassigned to index {idx}, center {center}")
+
+def track_primary_bbox(
+    prev_frame,
+    curr_frame,
+    prev_bbox,
+    search_scale=2.0,
+    min_confidence=0.4
+):
+    """
+    Track the primary fighter using template matching between consecutive frames.
+    Prints confidence score for debugging.
+    """
+    if prev_frame is None or prev_bbox is None:
+        print("[TEMPLATE] Skipped: missing prev_frame or prev_bbox")
+        return None
+
+    x1, y1, x2, y2 = prev_bbox
+    bbox_w = x2 - x1
+    bbox_h = y2 - y1
+
+    if bbox_w <= 0 or bbox_h <= 0:
+        print("[TEMPLATE] Skipped: invalid bbox dimensions")
+        return None
+
+    # --- Extract template from previous frame ---
+    template = prev_frame[y1:y2, x1:x2]
+    if template.size == 0:
+        print("[TEMPLATE] Skipped: empty template")
+        return None
+
+    h, w = curr_frame.shape[:2]
+
+    # --- Define search window around previous center ---
+    cx = int((x1 + x2) / 2)
+    cy = int((y1 + y2) / 2)
+
+    sw = int(bbox_w * search_scale / 2)
+    sh = int(bbox_h * search_scale / 2)
+
+    sx1 = max(cx - sw, 0)
+    sy1 = max(cy - sh, 0)
+    sx2 = min(cx + sw, w)
+    sy2 = min(cy + sh, h)
+
+    search_region = curr_frame[sy1:sy2, sx1:sx2]
+
+    if (
+        search_region.shape[0] < bbox_h or
+        search_region.shape[1] < bbox_w
+    ):
+        print("[TEMPLATE] Skipped: search region smaller than template")
+        return None
+
+    # --- Template matching ---
+    res = cv2.matchTemplate(
+        search_region,
+        template,
+        cv2.TM_CCOEFF_NORMED
+    )
+
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+
+    print(f"[TEMPLATE] match confidence: {max_val:.3f}")
+
+    if max_val < min_confidence:
+        print(
+            f"[TEMPLATE] Rejected (confidence {max_val:.3f} < {min_confidence})"
+        )
+        return None
+
+    # --- Compute new bbox in full-frame coordinates ---
+    new_x1 = sx1 + max_loc[0]
+    new_y1 = sy1 + max_loc[1]
+    new_x2 = new_x1 + bbox_w
+    new_y2 = new_y1 + bbox_h
+
+    return (new_x1, new_y1, new_x2, new_y2)

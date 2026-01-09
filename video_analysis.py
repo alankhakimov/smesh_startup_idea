@@ -40,10 +40,11 @@ def main():
     state.selecting = True
 
     processed_frame, detections = analyze_frame(
-        frame, model, conf_threshold
+        frame, model, conf_threshold, state=state
     )
 
     cv2.imshow("Video", processed_frame)
+    state.prev_frame = frame.copy()
     print("Paused on first frame. Select a fighter to continue.")
 
     while state.selecting:
@@ -85,6 +86,7 @@ def main():
 
             cv2.imshow("Video", processed_frame)
             state.frame_idx += 1
+            state.prev_frame = frame.copy()
 
             # Key input (non-blocking)
             key = cv2.waitKey(1) & 0xFF
@@ -114,6 +116,7 @@ def main():
 
                 cv2.imshow("Video", processed_frame)
                 state.frame_idx += 1
+                state.prev_frame = frame.copy()
 
             elif key == ord("p"):
                 # Previous frame (seek back)
@@ -126,6 +129,7 @@ def main():
                         frame, model, conf_threshold, state = state
                     )
                     cv2.imshow("Video", processed_frame)
+                    state.prev_frame = frame.copy()
 
             elif key == ord(" "):
                 state.paused = False
